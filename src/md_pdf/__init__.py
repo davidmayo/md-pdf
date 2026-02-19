@@ -33,7 +33,7 @@ _MARKDOWN_EXTENSION_CONFIGS = {
         "guess_lang": True,
     },
     "toc": {
-        "permalink": True,
+        "permalink": False,
     },
 }
 
@@ -321,7 +321,7 @@ def _get_pygments_css(mode: str) -> str:
     return formatter.get_style_defs(".codehilite")
 
 
-def _build_html(body_html: str, pygments_css: str, mode: str, size: str) -> str:
+def _build_html(body_html: str, pygments_css: str, mode: str, size: str, margin: float) -> str:
     """Assemble a complete HTML document with all styles inlined."""
     theme_css = GITHUB_CSS_LIGHT if mode == "LIGHT" else GITHUB_CSS_DARK
     page_size = "letter" if size == "LETTER" else "A4"
@@ -329,7 +329,7 @@ def _build_html(body_html: str, pygments_css: str, mode: str, size: str) -> str:
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<style>@page {{ size: {page_size}; margin: 20mm 25mm; }}</style>
+<style>@page {{ size: {page_size}; margin: {margin}in; }}</style>
 <style>{GITHUB_CSS_BASE}</style>
 <style>{theme_css}</style>
 <style>{pygments_css}</style>
@@ -350,6 +350,7 @@ def convert(
     *,
     mode: str = "LIGHT",
     size: str = "LETTER",
+    margin: float = 0.5,
 ) -> None:
     """Convert a Markdown file to PDF.
 
@@ -358,6 +359,7 @@ def convert(
         output_path: Path to write the output .pdf file.
         mode: Color mode — "LIGHT" (default) or "DARK".
         size: Page size — "LETTER" (default) or "A4".
+        margin: Page margin in inches (default: 0.5).
     """
     input_path = Path(input_path)
     output_path = Path(output_path)
@@ -374,7 +376,7 @@ def convert(
     body_html = md.convert(md_text)
 
     pygments_css = _get_pygments_css(mode)
-    full_html = _build_html(body_html, pygments_css, mode, size)
+    full_html = _build_html(body_html, pygments_css, mode, size, margin)
 
     HTML(
         string=full_html,
@@ -416,6 +418,13 @@ def main() -> None:
         default="LIGHT",
         help="Color mode (default: LIGHT)",
     )
+    parser.add_argument(
+        "--margin",
+        type=float,
+        default=0.5,
+        metavar="INCHES",
+        help="Page margin in inches (default: 0.5)",
+    )
 
     args = parser.parse_args()
 
@@ -423,7 +432,7 @@ def main() -> None:
     output_path = Path(args.output) if args.output else input_path.with_suffix(".pdf")
 
     try:
-        convert(input_path, output_path, mode=args.mode, size=args.size)
+        convert(input_path, output_path, mode=args.mode, size=args.size, margin=args.margin)
         print(f"PDF written to: {output_path}", file=sys.stderr)
     except FileNotFoundError as e:
         print(f"Error: {e}", file=sys.stderr)
