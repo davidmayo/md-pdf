@@ -7,7 +7,8 @@ from pathlib import Path
 
 import markdown
 from pygments.formatters import HtmlFormatter
-from weasyprint import HTML
+from weasyprint import CSS, HTML
+from weasyprint.text.fonts import FontConfiguration
 
 # ---------------------------------------------------------------------------
 # Markdown extensions
@@ -32,9 +33,7 @@ _MARKDOWN_EXTENSION_CONFIGS = {
         "linenums": False,
         "guess_lang": True,
     },
-    "toc": {
-        "permalink": False,
-    },
+    "toc": {"permalink": False},
 }
 
 # ---------------------------------------------------------------------------
@@ -49,7 +48,7 @@ GITHUB_CSS_BASE = """
 }
 
 body {
-    font-family: -apple-system, "Segoe UI", Helvetica, Arial, sans-serif;
+    font-family: "NotoColorEmoji", -apple-system, "Segoe UI", Helvetica, Arial, sans-serif;
     font-size: 16px;
     line-height: 1.5;
     max-width: 860px;
@@ -314,6 +313,52 @@ th { background-color: #161b22; }
 # Helpers
 # ---------------------------------------------------------------------------
 
+_FONTS_DIR = Path(__file__).parent / "fonts"
+
+
+# Unicode ranges that cover emoji and symbol blocks.
+_EMOJI_UNICODE_RANGE = (
+    "U+200D, U+203C, U+2049, U+20E3, "
+    "U+2122, U+2139, U+2194-2199, U+21A9-21AA, "
+    "U+231A-231B, U+2328, U+23CF, U+23E9-23F3, U+23F8-23FA, "
+    "U+24C2, U+25AA-25AB, U+25B6, U+25C0, U+25FB-25FE, "
+    "U+2600-2604, U+260E, U+2611, U+2614-2615, U+2618, U+261D, "
+    "U+2620, U+2622-2623, U+2626, U+262A, U+262E-262F, "
+    "U+2638-263A, U+2640, U+2642, U+2648-2653, U+265F-2660, "
+    "U+2663, U+2665-2666, U+2668, U+267B, U+267E-267F, "
+    "U+2692-2697, U+2699, U+269B-269C, U+26A0-26A1, U+26A7, "
+    "U+26AA-26AB, U+26B0-26B1, U+26BD-26BE, U+26C4-26C5, "
+    "U+26CE-26CF, U+26D1, U+26D3-26D4, U+26E9-26EA, "
+    "U+26F0-26F5, U+26F7-26FA, U+26FD, U+2702, U+2705, "
+    "U+2708-270D, U+270F, U+2712, U+2714, U+2716, U+271D, "
+    "U+2721, U+2728, U+2733-2734, U+2744, U+2747, U+274C, "
+    "U+274E, U+2753-2755, U+2757, U+2763-2764, U+2795-2797, "
+    "U+27A1, U+27B0, U+27BF, U+2934-2935, U+2B05-2B07, "
+    "U+2B1B-2B1C, U+2B50, U+2B55, U+3030, U+303D, "
+    "U+3297, U+3299, "
+    "U+FE00-FE0F, "
+    "U+1F000-1F02F, U+1F0A0-1F0FF, "
+    "U+1F100-1F1FF, U+1F200-1F2FF, "
+    "U+1F300-1F5FF, U+1F600-1F64F, U+1F650-1F6FF, "
+    "U+1F700-1F77F, U+1F780-1F7FF, U+1F800-1F8FF, "
+    "U+1F900-1F9FF, U+1FA00-1FA6F, U+1FA70-1FAFF"
+)
+
+
+def _font_face_css() -> str:
+    """Return @font-face rules for bundled fonts."""
+    rules = []
+    for ttf in sorted(_FONTS_DIR.glob("*.ttf")):
+        stem = ttf.stem  # e.g. "NotoEmoji-Regular"
+        family = stem.split("-")[0]
+        is_emoji = "emoji" in family.lower()
+        unicode_range = f" unicode-range: {_EMOJI_UNICODE_RANGE};" if is_emoji else ""
+        rules.append(
+            f'@font-face {{ font-family: "{family}"; src: url("{ttf.as_uri()}");{unicode_range} }}'
+        )
+    return "\n".join(rules)
+
+
 def _get_pygments_css(mode: str) -> str:
     """Generate Pygments CSS for the given mode."""
     style = "default" if mode == "LIGHT" else "github-dark"
@@ -378,10 +423,12 @@ def convert(
     pygments_css = _get_pygments_css(mode)
     full_html = _build_html(body_html, pygments_css, mode, size, margin)
 
+    font_config = FontConfiguration()
+    font_css = CSS(string=_font_face_css(), font_config=font_config)
     HTML(
         string=full_html,
         base_url=str(input_path.parent),
-    ).write_pdf(str(output_path))
+    ).write_pdf(str(output_path), stylesheets=[font_css], font_config=font_config)
 
 
 # ---------------------------------------------------------------------------
